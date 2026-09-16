@@ -30,37 +30,58 @@ BOOK_HASHES = [lambda r: (r + 1) % 5, lambda r: (3 * r + 1) % 5]
 
 def jaccard(a, b):
     """|a and b| / |a or b|. Empty union is 0, not an error."""
-    raise NotImplementedError("jaccard similarity")
+    union = a | b
+    if not union:          # 합집합이 비어 있으면
+        return 0
+    return len(a & b) / len(union)
 
 
 def minhash_signatures(columns, hashes, n_rows):
-    """Build the signature matrix, one pass over the rows.
+    """(설명 문자열은 그대로 두세요)"""
+    # 1) 열 기준 → 행 기준으로 뒤집기: rows[r] = 행 r에 1이 있는 열들
+    rows = [[] for _ in range(n_rows)]
+    for c, col in enumerate(columns):
+        for r in col:
+            rows[r].append(c)
 
-    `columns` is [set_of_row_numbers, ...], one entry per document.
-    Return [[sig for each hash] for each column].
+    # 2) 서명을 무한대로 초기화: sig[열][해시]
+    INF = float("inf")
+    sig = [[INF] * len(hashes) for _ in columns]
 
-    The algorithm in §3.3.5 walks each row **once** and updates the signature
-    of every column that has a 1 in it:
-
-        sig[h][c] = min(sig[h][c], h(r))
-
-    Doing it that way is the point. If you sort or re-scan per column you have
-    written something correct that does not survive a dataset that does not fit
-    in memory, and not fitting in memory is what this course is about.
-    """
-    raise NotImplementedError("signature matrix")
+    # 3) 행을 한 번씩만 순회
+    for r in range(n_rows):
+        hv = [h(r) for h in hashes]        # 이 행의 해시값들 (행마다 한 번만 계산)
+        for c in rows[r]:                  # 이 행에 1이 있는 열만
+            for i, v in enumerate(hv):
+                if v < sig[c][i]:
+                    sig[c][i] = v
+    return sig
 
 
 def lsh_candidates(signatures, bands):
-    """Split each signature into `bands` bands and hash each band.
+    """(설명 문자열은 그대로 두세요)"""
+    from collections import defaultdict
+    from itertools import combinations
 
-    Two columns are candidates if they land in the same bucket for **at least
-    one** band. Return {(i, j), ...} with i < j.
+    if not signatures:
+        return set()
+    n = len(signatures[0])                 # 서명 길이
+    # R5: 나눠떨어지지 않으면 오류. S자 곡선 공식이 모든 밴드 길이가 같다고 가정하기 때문
+    if bands <= 0 or n % bands != 0:
+        raise ValueError(f"signature length {n} is not divisible by bands={bands}")
+    r = n // bands                         # 밴드당 칸 수
 
-    The signature length must divide evenly by `bands`, or you have to decide
-    what to do with the remainder. Say what you decided.
-    """
-    raise NotImplementedError("LSH candidate pairs")
+    buckets = defaultdict(list)            # (밴드 번호, 구간 값) -> 문서 번호 목록
+    for doc, sig in enumerate(signatures):
+        for b in range(bands):
+            key = (b, tuple(sig[b * r:(b + 1) * r]))
+            buckets[key].append(doc)
+
+    cands = set()
+    for docs in buckets.values():
+        for i, j in combinations(docs, 2):  # 같은 버킷에 든 모든 쌍
+            cands.add((i, j))               # enumerate 순서라 항상 i < j
+    return cands
 
 
 # ------------------------------------------------------------------- harness
