@@ -58,6 +58,7 @@ def main():
 
     rows = []
     for n in [int(x) for x in a.sizes.split(",")]:
+        bench.N_DOCS = n 
         docs = bench.build()[:n]
         sim = bench.Counter()
         _, t_brute, m_brute = timed(BruteForce(a.threshold).find, docs, sim)
