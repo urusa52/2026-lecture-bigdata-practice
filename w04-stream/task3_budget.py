@@ -17,7 +17,7 @@ The whole point of this structure is that "no" means no. A filter that gets a
 better score by occasionally forgetting something it was given has not improved
 anything, it has broken the contract.
 """
-import hashlib
+import hashlib, math
 
 
 class NaiveFilter:
@@ -64,14 +64,41 @@ class YourFilter:
     observation.md asks.
     """
 
-    def __init__(self, n_bits, seed=246):
-        raise NotImplementedError("write your filter")
+    # The harness inserts 8,000 items and says so up front (bench.py, task3.md).
+    EXPECTED_ITEMS = 8_000
+
+    def __init__(self, n_bits, seed=246, expected_items=EXPECTED_ITEMS):
+        self.n_bits = n_bits
+        self.seed = seed
+        # §4.4.2: FP(k) = (1 - e^(-kn/m))^k. Write p = e^(-kn/m) (the chance a
+        # bit is still 0), so k = -(m/n) ln p and
+        #   ln FP = k ln(1 - p) = -(m/n) * ln(p) * ln(1 - p).
+        # ln(p) ln(1-p) is symmetric in p <-> 1-p, so its extreme is at p = 1/2:
+        # each bit should end up 1 with probability exactly one half. Then
+        #   k* = (m/n) ln 2 = 10 * 0.693 = 6.93  ->  k = 7
+        #   FP* = (1/2)^k* = 0.6185^(m/n) = 0.6185^10 ~ 0.82 %
+        # The baseline uses k = 1: FP = 1 - e^(-0.1) = 9.52 %.
+        self.k = max(1, round(n_bits / expected_items * math.log(2)))
+        if self.k > 8:
+            raise ValueError("this filter cuts at most 8 hashes from one digest")
+        self.key = str(seed).encode()
+        self.bits = bytearray((n_bits + 7) // 8)   # packed, 1 bit per position
+
+    def _indexes(self, item):
+        # k independent 64-bit slices of one keyed blake2b digest
+        d = hashlib.blake2b(str(item).encode(), digest_size=8 * self.k,
+                            key=self.key).digest()
+        for i in range(self.k):
+            yield int.from_bytes(d[8 * i:8 * i + 8], "big") % self.n_bits
 
     def add(self, item):
-        raise NotImplementedError
+        for j in self._indexes(item):
+            self.bits[j >> 3] |= 1 << (j & 7)
 
     def __contains__(self, item):
-        raise NotImplementedError
+        return all(self.bits[j >> 3] >> (j & 7) & 1 for j in self._indexes(item))
 
     def memory_bits(self):
-        raise NotImplementedError
+        # The whole filter state is the bit array. k and the key are
+        # parameters, the same kind of thing as NaiveFilter's seed.
+        return len(self.bits) * 8
