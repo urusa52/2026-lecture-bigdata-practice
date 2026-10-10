@@ -41,7 +41,34 @@ def pagerank(graph, beta=0.85, iterations=100, tol=1e-10):
     you should call it converged. Return the ranks, and set `pagerank.iterations`
     to how many you actually used, because Task 2 measures that.
     """
-    raise NotImplementedError("implement PageRank")
+    nodes = _all_nodes(graph)
+    n = len(nodes)
+    r = {v: 1.0 / n for v in nodes}                  # 시작: 균등 분포
+
+    used = 0
+    for used in range(1, iterations + 1):
+        new = {v: 0.0 for v in nodes}
+        dead_mass = 0.0
+        for v in nodes:
+            outs = graph.get(v, [])
+            if outs:                                  # 링크를 따라 균등 분배
+                share = r[v] / len(outs)
+                for w in outs:
+                    new[w] += share
+            else:                                     # dead end: 모아뒀다가
+                dead_mass += r[v]
+        # dead end 의 rank 를 모든 노드에 균등하게 돌려준다 (전체 합 보존)
+        # + 확률 1-beta 로 아무 노드로 teleport (spider trap 탈출)
+        base = beta * dead_mass / n + (1 - beta) / n
+        new = {v: beta * new[v] + base for v in nodes}
+
+        delta = sum(abs(new[v] - r[v]) for v in nodes)   # L1 변화량
+        r = new
+        if delta < tol:
+            break
+
+    pagerank.iterations = used
+    return r
 
 
 def pagerank_no_teleport(graph, iterations=100):
@@ -50,7 +77,29 @@ def pagerank_no_teleport(graph, iterations=100):
     It exists so you can watch both failures happen rather than take them on
     trust. The harness checks that it really does fail.
     """
-    raise NotImplementedError("implement the broken version")
+    nodes = _all_nodes(graph)
+    n = len(nodes)
+    r = {v: 1.0 / n for v in nodes}
+
+    for _ in range(iterations):
+        new = {v: 0.0 for v in nodes}
+        for v in nodes:
+            outs = graph.get(v, [])
+            for w in outs:                    # 링크만 따라간다 (r = M r)
+                new[w] += r[v] / len(outs)
+            # dead end 의 rank 는 아무 데도 안 가고 그냥 사라진다
+            # teleport 가 없으니 trap 에 들어간 rank 는 빠져나오지 못한다
+        r = new
+    return r
+
+
+def _all_nodes(graph):
+    """키뿐 아니라 링크 대상으로만 등장하는 노드도 포함 (순서 유지)."""
+    seen = dict.fromkeys(graph)
+    for outs in graph.values():
+        for w in outs:
+            seen.setdefault(w, None)
+    return list(seen)
 
 
 # ------------------------------------------------------------------- harness

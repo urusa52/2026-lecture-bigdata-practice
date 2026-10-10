@@ -36,7 +36,28 @@ def local_pagerank(edges, nodes, beta=0.85, iterations=10):
 
     Return {node: rank} and set local_pagerank.peak_bytes.
     """
-    raise NotImplementedError("TASK 4a - reuse your sparse PageRank")
+    # Task 3 와 같은 구조: 정수 인접 리스트 + rank 배열 2개.
+    outs = [[] for _ in range(nodes)]
+    for src, dst in edges:
+        outs[src].append(dst)
+    dead = [j for j in range(nodes) if not outs[j]]
+
+    r = [1.0 / nodes] * nodes
+    for _ in range(iterations):
+        nr = [0.0] * nodes
+        for j in range(nodes):
+            o = outs[j]
+            if o:
+                share = beta * r[j] / len(o)
+                for i in o:
+                    nr[i] += share
+        dead_mass = sum(r[j] for j in dead)
+        base = beta * dead_mass / nodes + (1 - beta) / nodes   # teleport 는 스칼라 하나
+        r = [x + base for x in nr]
+
+    local_pagerank.peak_bytes = (tracemalloc.get_traced_memory()[1]
+                                 if tracemalloc.is_tracing() else None)
+    return dict(enumerate(r))
 
 
 def spark_pagerank(edges, nodes, beta=0.85, iterations=10):

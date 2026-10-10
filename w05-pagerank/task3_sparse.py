@@ -86,10 +86,46 @@ class YourPageRank:
     """
 
     def __init__(self, beta=0.85, tol=1e-10, max_iter=100):
-        raise NotImplementedError("write your PageRank")
+        self.beta, self.tol, self.max_iter = beta, tol, max_iter
+        self._floats = 0
 
     def run(self, graph):
-        raise NotImplementedError
+        nodes = list(graph)
+        n = len(nodes)
+        index = {v: i for i, v in enumerate(nodes)}
+
+        # M 대신 인접 리스트를 정수 인덱스로만 보관한다 (float 0개).
+        # out-degree 는 len(outs) 로 그때그때 구하므로 따로 저장하지 않는다.
+        outs = [[index[w] for w in graph[v]] for v in nodes]
+        dead = [j for j in range(n) if not outs[j]]
+
+        beta = self.beta
+        r = [1.0 / n] * n                       # float n 개
+        for self.iterations in range(1, self.max_iter + 1):
+            nr = [0.0] * n                      # float n 개 (최대 2n 개 동시 보유)
+            for j in range(n):
+                o = outs[j]
+                if o:
+                    share = beta * r[j] / len(o)
+                    for i in o:
+                        nr[i] += share
+            # teleport + dead end 재분배: 모든 노드에 같은 값이므로
+            # 스칼라 하나만 계산해서 더한다 (n x n 연산이 아님)
+            dead_mass = 0.0
+            for j in dead:
+                dead_mass += r[j]
+            base = beta * dead_mass / n + (1 - beta) / n
+            delta = 0.0
+            for i in range(n):
+                v = nr[i] + base
+                delta += abs(v - r[i])
+                nr[i] = v
+            r = nr
+            if delta < self.tol:
+                break
+
+        self._floats = 2 * n
+        return {v: r[index[v]] for v in nodes}
 
     def memory_floats(self):
-        raise NotImplementedError
+        return self._floats
