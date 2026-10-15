@@ -34,7 +34,19 @@ def son_pass_one(chunks, support, total_baskets):
 
     TASK 4a
     """
-    raise NotImplementedError("TASK 4a - SON pass one")
+    from task1_apriori import frequent_pairs
+
+    candidates = set()
+    for chunk in chunks:
+        if not chunk:
+            continue
+        # p = this chunk's share of the baskets; the chunk threshold is p * s.
+        # Kept as an exact fraction-valued float, never rounded up past p * s:
+        # counts are integers, so `count >= p*s` is the same as
+        # `count >= ceil(p*s)`, and that is exactly what the proof needs.
+        scaled = support * len(chunk) / total_baskets
+        candidates.update(frequent_pairs(chunk, scaled))
+    return candidates
 
 
 def son_pass_two(baskets, candidates, support):
@@ -45,8 +57,31 @@ def son_pass_two(baskets, candidates, support):
     produce is false negatives, and that is the whole design.
 
     TASK 4b
+
+    Instead of testing every candidate against every basket (|baskets| x
+    |candidates| subset tests), walk each basket's own pairs - restricted, as
+    in task 1, to items that occur in some candidate - and look each one up in
+    the candidate set. Work is per basket pair, not per candidate.
     """
-    raise NotImplementedError("TASK 4b - SON pass two")
+    cands = {tuple(sorted(c)) for c in candidates}
+    items = {i for pair in cands for i in pair}
+    counts = dict.fromkeys(cands, 0)
+    for basket in baskets:
+        survivors = sorted(basket & items)
+        for pair in combinations(survivors, 2):
+            if pair in counts:
+                counts[pair] += 1
+    return {frozenset(p): c for p, c in counts.items() if c >= support}
+
+
+def son_pass_two_naive(baskets, candidates, support):
+    """The obvious pass two, for timing only: every candidate x every basket."""
+    counts = dict.fromkeys(candidates, 0)
+    for basket in baskets:
+        for c in candidates:
+            if c <= basket:
+                counts[c] += 1
+    return {c: n for c, n in counts.items() if n >= support}
 
 
 # ------------------------------------------------------------------- harness
@@ -105,6 +140,8 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--spark", action="store_true")
     p.add_argument("--chunks", type=int, default=8)
+    p.add_argument("--naive", action="store_true",
+                   help="also time the obvious candidate-x-basket pass two")
     a = p.parse_args()
 
     import bench
@@ -122,15 +159,23 @@ def main():
     try:
         t0 = time.perf_counter()
         cands = son_pass_one(chunked(baskets, a.chunks), support, len(baskets))
+        t1 = time.perf_counter()
         found = son_pass_two(baskets, cands, support)
         t_son = time.perf_counter() - t0
+        t_two = time.perf_counter() - t1
         missing = len(set(truth) - set(found))
         extra = len(set(found) - set(truth))
         print(f"  your SON          {t_son:7.2f}s   pairs {len(found):>6,}   "
               f"candidates {len(cands):>7,}   missing {missing}, extra {extra}")
+        print(f"                    pass one {t1 - t0:5.2f}s, pass two {t_two:5.2f}s")
         if missing:
             print("    ^ SON must not have false negatives. Re-read §6.4.3 on "
                   "the scaled threshold.")
+        if a.naive:
+            t0 = time.perf_counter()
+            slow = son_pass_two_naive(baskets, cands, support)
+            print(f"  naive pass two    {time.perf_counter() - t0:7.2f}s   "
+                  f"pairs {len(slow):>6,}   same {set(slow) == set(found)}")
     except NotImplementedError:
         print("  your SON          TASK 4a / 4b not implemented")
 

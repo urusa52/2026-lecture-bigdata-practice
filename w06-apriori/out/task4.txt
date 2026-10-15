@@ -1,0 +1,17 @@
+
+  20,000 baskets, support 50, 8 chunks
+
+  task 3 baseline      2.18s   pairs  6,397
+  your SON             3.99s   pairs  6,397   candidates  14,201   missing 0, extra 0
+                    pass one  3.54s, pass two  0.45s
+  naive pass two      31.37s   pairs  6,397   same True
+
+  --chunks sweep (candidates move, answer does not)
+  chunks   2 3.96s   pairs  6,397   candidates   7,760   missing 0, extra 0
+  chunks   4 3.71s   pairs  6,397   candidates   9,876   missing 0, extra 0
+  chunks   8 3.86s   pairs  6,397   candidates  14,201   missing 0, extra 0
+  chunks  16 3.61s   pairs  6,397   candidates  24,418   missing 0, extra 0
+  chunks  32 5.57s   pairs  6,397   candidates 103,533   missing 0, extra 0
+  chunks 100 10.45s   pairs  6,397   candidates 893,456   missing 0, extra 0
+
+  spark SON: not run - pyspark could not be installed (wheel build failed on Python 3.13)
