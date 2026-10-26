@@ -22,7 +22,7 @@ BLOBS = [(0.0, 0.0), (0.2, 0.1), (0.1, 0.2),
 
 def euclidean(a, b):
     """Distance between two points of any dimension."""
-    raise NotImplementedError("distance")
+    return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
 
 
 def assign(points, centroids):
@@ -30,16 +30,72 @@ def assign(points, centroids):
 
     Ties go to the lower index, so that everybody's answer is the same.
     """
-    raise NotImplementedError("assignment step")
+    labels = []
+    for p in points:
+        best, bi = None, 0
+        for j, c in enumerate(centroids):
+            d = euclidean(p, c)
+            if best is None or d < best:      # strict '<': a tie keeps the lower j
+                best, bi = d, j
+        labels.append(bi)
+    return labels
 
 
-def update(points, labels, k):
+def update(points, labels, k, previous=None):
     """Move each centroid to the mean of its points.
 
     An empty cluster has no mean. Decide what you do - and say so, because the
     choice changes the result and there is more than one defensible answer.
+
+    R3 choice: an empty cluster **keeps its previous centroid**. It costs
+    nothing, never invents a point, and the centroid may win points back on a
+    later pass. (The alternative - jump to the point furthest from its own
+    centroid - repairs bad starts more aggressively but makes the result depend
+    on one outlier.) `previous` is the centroid list from the last pass.
     """
-    raise NotImplementedError("update step")
+    dim = len(points[0])
+    sums = [[0.0] * dim for _ in range(k)]
+    counts = [0] * k
+    for p, l in zip(points, labels):
+        counts[l] += 1
+        s = sums[l]
+        for i, v in enumerate(p):
+            s[i] += v
+    out = []
+    for j in range(k):
+        if counts[j]:
+            out.append(tuple(v / counts[j] for v in sums[j]))
+        elif previous is not None:
+            out.append(tuple(previous[j]))
+        else:
+            raise ValueError(f"cluster {j} is empty and no previous centroid was given")
+    return out
+
+
+def _init_random(points, k, rng):
+    """R4: k distinct data points chosen uniformly at random."""
+    return [tuple(p) for p in rng.sample(points, k)]
+
+
+def _init_plusplus(points, k, rng):
+    """R5: k-means++ - first centre uniform, each next one with probability
+    proportional to D(x)^2, the squared distance to the nearest centre so far."""
+    cents = [tuple(rng.choice(points))]
+    d2 = [euclidean(p, cents[0]) ** 2 for p in points]
+    while len(cents) < k:
+        total = sum(d2)
+        if total == 0:                        # every point already sits on a centre
+            nxt = rng.choice(points)
+        else:
+            r, acc, nxt = rng.random() * total, 0.0, points[-1]
+            for p, w in zip(points, d2):
+                acc += w
+                if acc >= r and w > 0:
+                    nxt = p
+                    break
+        cents.append(tuple(nxt))
+        d2 = [min(old, euclidean(p, cents[-1]) ** 2) for p, old in zip(points, d2)]
+    return cents
 
 
 def kmeans(points, k, init="random", seed=246, max_iter=100):
@@ -56,12 +112,29 @@ def kmeans(points, k, init="random", seed=246, max_iter=100):
 
     Set `kmeans.iterations` to how many passes you used.
     """
-    raise NotImplementedError("k-means")
+    rng = random.Random(seed)
+    if init == "random":
+        centroids = _init_random(points, k, rng)
+    elif init == "++":
+        centroids = _init_plusplus(points, k, rng)
+    else:
+        raise ValueError(f"unknown init {init!r}")
+
+    labels = None
+    kmeans.iterations = 0
+    for it in range(1, max_iter + 1):
+        new = assign(points, centroids)
+        kmeans.iterations = it
+        if new == labels:                     # nothing moved: converged
+            break
+        labels = new
+        centroids = update(points, labels, k, previous=centroids)
+    return labels, centroids, sse_of(points, labels, centroids)
 
 
 def sse_of(points, labels, centroids):
     """Sum of squared distances from each point to its assigned centroid."""
-    raise NotImplementedError("sse")
+    return sum(euclidean(p, centroids[l]) ** 2 for p, l in zip(points, labels))
 
 
 # ------------------------------------------------------------------- harness
