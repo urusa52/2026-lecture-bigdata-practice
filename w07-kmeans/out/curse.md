@@ -4,7 +4,7 @@
 
 ## A7 · 측정 환경
 - 노트북: Intel Core i5-12450H (6주차와 같은 노트북)
-- 실행 위치: 그 노트북의 Claude 데스크톱 앱이 띄운 Linux VM (Ubuntu 22.04, 커널 6.8, vCPU 2개, RAM 4 GB). `curse.json`의 `platform`이 Linux인 이유다.
+- 실행 위치: 그 노트북에서 돌린 Linux VM (Ubuntu 22.04, 커널 6.8, vCPU 2개, RAM 4 GB). `curse.json`의 `platform`이 Linux인 이유다.
 - Python 3.10.12
 - 가장 큰 실행: d = 1000, 점 2,000개 → **2.39초**. 쌍 수를 20만으로 늘린 d = 50 실행은 1.58초. 전체 측정은 10초 안에 끝났다.
 
